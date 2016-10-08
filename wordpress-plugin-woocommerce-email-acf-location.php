@@ -36,39 +36,124 @@ add_filter('acf/location/rule_match/wc_email', function ($match, $rule, $options
     });
 }, 10, 3);
 
-add_filter('woocommerce_email_order_meta_fields', function ($email_fields, $sent_to_admin, $order) {
-    $groups = acf_get_field_groups(array('post_id' => $order->id));
-    user_error('groups: '.print_r($groups, true));
-    foreach ($groups as $g => $group) {
-        $email_fields[] = array(
-            'label' => $group['title'],
-            'value' => $group['title'],
+$layouts = array(
+    'table' => function ($field, $rows) use ($layouts) {
+        $meta = sprintf(
+            '<table id="%1$s" title="%2$s" cellspacing="0" style="border: 1px #e4e4e4 solid">',
+            $field['id'],
+            $field['label']
         );
-        $fields = acf_get_fields($group);
-        user_error('fields: '.print_r($fields, true));
-        foreach ($fields as $f => $field) {
-            $email_fields[] = array(
-                'label' => $field['label'],
-                'value' => $field['value'],
+        $meta .= '<thead><tr><th style="border: 1px #e4e4e4 solid">#</th>';
+        foreach ($field['sub_fields'] as $s => $sub) {
+            $meta .= sprintf(
+                '<th class="%s" style="border: 1px #e4e4e4 solid">%s</th>',
+                $sub['name'],
+                $sub['label']
             );
-            while (have_rows($field['name'])) {
-                the_row();
-                $row = get_row(true);
-                user_error('row: '.print_r($row, true));
-                foreach ($row as $sf => $value) {
-                    $subField = get_sub_field_object($sf);
-                    user_error('subField: '.print_r($subField, true));
-                    $email_fields[] = array(
-                        'label' => $subField['label'],
-                        'value' => $value,
-                    );
-                }
-            }
         }
+        $meta .= '</tr></thead><tbody>';
+        foreach ($rows as $r => $row) {
+            $meta .= sprintf('<tr><td style="border: 1px #e4e4e4 solid">%d</td>', $r + 1);
+            foreach ($row as $f => $sub) {
+                if (have_rows($sub['name'])) {
+                    $subRows = array();
+                    while (have_rows($sub['name'])) {
+                        the_row();
+                        $subRows[] = get_row(true);
+                    }
+                    $sub['value'] = $layouts[$sub['layout']]($sub, $subRows);
+                }
+                $meta .= sprintf(
+                    '<td class="%s" style="%s">%s</td>',
+                    $r,
+                    'border: 1px #e4e4e4 solid; white-space: pre',
+                    $sub['value']
+                );
+            }
+            $meta .= '</tr>';
+        }
+        $meta .= '</tr></tbody></table>';
+        return $meta;
+    },
+    'row' => function ($field, $rows) use ($layouts) {
+        $meta = sprintf(
+            '<table id="%1$s" title="%2$s" style="border: 1px #e4e4e4 solid">',
+            $field['id'],
+            $field['label']
+        );
+        $meta .= '<tbody>';
+        foreach ($rows as $r => $sub) {
+            if (have_rows($sub['name'])) {
+                $subRows = array();
+                while (have_rows($sub['name'])) {
+                    the_row();
+                    $subRows[] = get_row(true);
+                }
+                $sub['value'] = $layouts[$sub['layout']]($sub, $subRows);
+            }
+            $meta .= sprintf(
+                '<tr class="%1$s"><th style="%4$s">%2$s</th><td style="%4$s">%3$s</td></tr>',
+                $sub['name'],
+                $sub['label'],
+                $sub['value'],
+                'border: 1px #e4e4e4 solid; white-space: pre'
+            );
+        }
+        $meta .= '</tbody></table>';
+        return $meta;
+    },
+    'block' => function ($field, $rows) use ($layouts) {
+        $meta .= sprintf('<h2>%2$s</h2><dl id="%1$s"', $field['id'], $field['label']);
+        foreach ($rows as $r => $sub) {
+            if (have_rows($sub['name'])) {
+                $subRows = array();
+                while (have_rows($sub['name'])) {
+                    the_row();
+                    $subRows[] = get_row(true);
+                }
+                $sub['value'] = $layouts[$sub['layout']]($sub, $subRows);
+            }
+            $meta .= sprintf(
+                '<dt class="%s" style="font-weight: bold">%s</dt><dd style="%s">%s</dd>',
+                $sub['name'],
+                $sub['label'],
+                'white-space: pre',
+                $sub['value']
+            );
+        }
+        $meta .= '</dl>';
+        return $meta;
+    },
+);
+
+add_filter('woocommerce_email_after_order_table', function ($order, $sent_to_admin, $plaintext, $email) use ($layouts) {
+    $groups = acf_get_field_groups(array('post_id' => $order->id));
+    foreach ($groups as $g => $group) {
+        $meta .= sprintf('<h2 class="%s">%s</h2>', $group['key'], $group['title']);
+        $meta .= '<dl>';
+        $fields = acf_get_fields($group);
+        foreach ($fields as $f => $field) {
+            $meta .= sprintf('<dt class="%s" style="font-weight: bold">%s</dt>', $field['name'], $field['label']);
+            if (have_rows($field['name'], $order->id)) {
+                $rows = array();
+                while (have_rows($field['name'], $order->id)) {
+                    the_row();
+                    $row = get_row(true);
+                    foreach ($row as $x => $value) {
+                        $row[$x] = get_sub_field_object($x);
+                        $row[$x]['value'] = $value;
+                    }
+                    $rows[] = $row;
+                }
+                $field['value'] = $layouts[$field['layout']]($field, $rows);
+            }
+            $meta .= sprintf(
+                '<dd class="%s" style="white-space: pre">%s</dd>',
+                $field['name'],
+                $field['value'] ?: $field['default_value']
+            );
+        }
+        $meta .= '</dl>';
+        echo $meta;
     }
-    return $email_fields;
-}, 10, 3);
-
-add_action('woocommerce_email_order_meta', function ($order, $sent_to_admin, $plain_text, $email) {
-
-}, 20, 4);
+}, 10, 4);
