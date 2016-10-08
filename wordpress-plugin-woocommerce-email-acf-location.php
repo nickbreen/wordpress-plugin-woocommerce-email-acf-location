@@ -39,9 +39,10 @@ add_filter('acf/location/rule_match/wc_email', function ($match, $rule, $options
 $layouts = array(
     'table' => function ($field, $rows) use ($layouts) {
         $meta = sprintf(
-            '<table id="%1$s" title="%2$s" cellspacing="0" style="border: 1px #e4e4e4 solid">',
+            '<table id="%1$s" title="%2$s" style="%s" cellspacing="0">',
             $field['id'],
-            $field['label']
+            $field['label'],
+            'white-space: pre; text-align: left; vertical-align: text-top'
         );
         $meta .= '<thead><tr><th style="border: 1px #e4e4e4 solid">#</th>';
         foreach ($field['sub_fields'] as $s => $sub) {
@@ -77,51 +78,67 @@ $layouts = array(
     },
     'row' => function ($field, $rows) use ($layouts) {
         $meta = sprintf(
-            '<table id="%1$s" title="%2$s" style="border: 1px #e4e4e4 solid">',
+            '<table id="%1$s" title="%2$s" style="%s" cellspacing="0">',
             $field['id'],
-            $field['label']
+            $field['label'],
+            'white-space: pre; text-align: left; vertical-align: text-top'
         );
         $meta .= '<tbody>';
-        foreach ($rows as $r => $sub) {
-            if (have_rows($sub['name'])) {
-                $subRows = array();
-                while (have_rows($sub['name'])) {
-                    the_row();
-                    $subRows[] = get_row(true);
-                }
-                $sub['value'] = $layouts[$sub['layout']]($sub, $subRows);
-            }
-            $meta .= sprintf(
-                '<tr class="%1$s"><th style="%4$s">%2$s</th><td style="%4$s">%3$s</td></tr>',
-                $sub['name'],
-                $sub['label'],
-                $sub['value'],
-                'border: 1px #e4e4e4 solid; white-space: pre'
+        foreach ($rows as $r => $row) {
+            $first = sprintf(
+                '<td rowspan="%d" style="%s">%d</td>',
+                count($row),
+                'border: 1px #e4e4e4 solid',
+                $r + 1
             );
+            foreach ($row as $f => $sub) {
+                $meta .= '<tr style="white-space: pre; text-align: left; vertical-align: text-top">';
+                if ($first) {
+                    $meta .= $first;
+                    $first = null;
+                }
+                if (have_rows($sub['name'])) {
+                    $subRows = array();
+                    while (have_rows($sub['name'])) {
+                        the_row();
+                        $subRows[] = get_row(true);
+                    }
+                    $sub['value'] = $layouts[$sub['layout']]($sub, $subRows);
+                }
+                $meta .= sprintf(
+                    '<th style="%2$s">%1$s</th><td style="%2$s">%3$s</td>',
+                    $sub['label'],
+                    'border: 1px #e4e4e4 solid; ',
+                    $sub['value']
+                );
+                $meta .= '</tr>';
+            }
         }
         $meta .= '</tbody></table>';
         return $meta;
     },
     'block' => function ($field, $rows) use ($layouts) {
-        $meta .= sprintf('<h2>%2$s</h2><dl id="%1$s"', $field['id'], $field['label']);
-        foreach ($rows as $r => $sub) {
-            if (have_rows($sub['name'])) {
-                $subRows = array();
-                while (have_rows($sub['name'])) {
-                    the_row();
-                    $subRows[] = get_row(true);
+        foreach ($rows as $r => $row) {
+            $meta .= sprintf('<dl id="%s" title="%s">', $field['id'], $field['label']);
+            foreach ($row as $f => $sub) {
+                if (have_rows($sub['name'])) {
+                    $subRows = array();
+                    while (have_rows($sub['name'])) {
+                        the_row();
+                        $subRows[] = get_row(true);
+                    }
+                    $sub['value'] = $layouts[$sub['layout']]($sub, $subRows);
                 }
-                $sub['value'] = $layouts[$sub['layout']]($sub, $subRows);
+                $meta .= sprintf(
+                    '<dt class="%s" style="font-weight: bold">%s</dt><dd style="%s">%s</dd>',
+                    $sub['name'],
+                    $sub['label'],
+                    'white-space: pre',
+                    $sub['value']
+                );
             }
-            $meta .= sprintf(
-                '<dt class="%s" style="font-weight: bold">%s</dt><dd style="%s">%s</dd>',
-                $sub['name'],
-                $sub['label'],
-                'white-space: pre',
-                $sub['value']
-            );
+            $meta .= '</dl><hr/>';
         }
-        $meta .= '</dl>';
         return $meta;
     },
 );
