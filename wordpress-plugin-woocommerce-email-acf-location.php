@@ -31,7 +31,7 @@ add_filter('acf/location/rule_match/wc_email', function ($match, $rule, $options
             case '!=':
                 return $email->id != $rule['value'];
             default:
-                return array();
+                return false;
         }
     });
 }, 10, 3);
