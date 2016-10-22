@@ -8,34 +8,6 @@ Author URI: http://foobar.net.nz
 Plugin URI: https://github.com/nickbreen/wordpress-plugin-woocommerce-email-acf-location
 */
 
-add_filter('acf/location/rule_types', function ($choices) {
-    $choices['Email']['wc_email'] = 'WooCommerce Emails';
-    return $choices;
-});
-
-add_filter('acf/location/rule_values/wc_email', function ($choices) {
-    global $woocommerce;
-    $emails = $woocommerce->mailer()->emails;
-    foreach ($emails as $email) {
-        $choices[$email->id] = $email->title;
-    }
-    return $choices;
-});
-
-add_filter('acf/location/rule_match/wc_email', function ($match, $rule, $options) {
-    global $woocommerce;
-    return array_filter($woocommerce->mailer()->emails, function ($email) use ($rule) {
-        switch ($rule['operator']) {
-            case '==':
-                return $email->id == $rule['value'];
-            case '!=':
-                return $email->id != $rule['value'];
-            default:
-                return false;
-        }
-    });
-}, 10, 3);
-
 $layouts = array(
     'table' => function ($field, $rows) use ($layouts) {
         $meta = sprintf(
